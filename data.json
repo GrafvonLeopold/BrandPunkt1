@@ -1,0 +1,20 @@
+{
+  "probes": [
+    {
+      "id": 1,
+      "title": "Februar 9.",
+      "themes": [
+        {"id": 1, "name": "Hydrantentraining", "max": 10},
+        {"id": 2, "name": "Leiterübung", "max": 8}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Februar 24.",
+      "themes": [
+        {"id": 3, "name": "Löschgruppenübungen", "max": 12},
+        {"id": 4, "name": "Fahrzeugkunde", "max": 10}
+      ]
+    }
+  ]
+}

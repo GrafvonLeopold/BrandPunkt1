@@ -4,12 +4,20 @@
 <meta charset="UTF-8">
 <title>Sonderproben Anmeldung Feuerwehr Breisach</title>
 <style>
-body { font-family: Arial; margin:20px; }
-select, div, input { margin-top:10px; display:block; }
-.theme { padding:5px; border:1px solid #ccc; margin-bottom:5px; }
+body { font-family: Arial, sans-serif; margin:20px; background:#f7f7f7; color:#333; }
+h1 { color:#d33; }
+.container { max-width:600px; margin:auto; background:white; padding:20px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1);}
+select, input, button { margin-top:10px; display:block; width:100%; padding:8px; font-size:1em; }
+.theme { padding:8px; border:1px solid #ccc; border-radius:5px; margin-bottom:8px; background:#fafafa; }
+.theme label { cursor:pointer; display:block; }
+.theme.disabled { background:#eee; color:#888; }
+#participants-list { margin-top:20px; font-size:0.95em; }
+button { background:#d33; color:white; border:none; border-radius:5px; cursor:pointer; }
+button:hover { background:#b22; }
 </style>
 </head>
 <body>
+<div class="container">
 <h1>Sonderproben Anmeldung Feuerwehr Breisach</h1>
 
 <label for="probe">Sonderprobe auswählen:</label>
@@ -22,47 +30,133 @@ select, div, input { margin-top:10px; display:block; }
 <input id="name" type="text" placeholder="Name">
 
 <button id="register">Anmelden</button>
+<button id="export-csv">Teilnehmerliste exportieren (CSV)</button>
+
+<h3>Wo du angemeldet bist:</h3>
+<div id="my-registrations">Noch keine Anmeldung</div>
+
+<h3>Aktuelle Anmeldungen:</h3>
+<div id="participants-list"></div>
+</div>
 
 <script>
-// JSON-Datei laden
-fetch('data.json')
-  .then(res => res.json())
-  .then(data => {
-    window.probes = data.probes;
-    const probeSelect = document.getElementById('probe');
-    data.probes.forEach(p=>{
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.title;
-      probeSelect.appendChild(opt);
-    });
-    loadThemes(data.probes[0].id);
-  });
+// Demo-Daten
+const probes = [
+  { id: 1, title: "Februar 9.", themes: [
+      {id:1, name:"Hydrantentraining", max:10, participants:[]},
+      {id:2, name:"Leiterübung", max:8, participants:[]}
+    ]},
+  { id: 2, title: "Februar 24.", themes: [
+      {id:3, name:"Löschgruppenübungen", max:12, participants:[]},
+      {id:4, name:"Fahrzeugkunde", max:10, participants:[]}
+    ]}
+];
+
+let currentProbeId = probes[0].id;
+let myRegistrations = {}; // {probeId: themeId}
+
+// Probe Dropdown
+const probeSelect = document.getElementById('probe');
+probes.forEach(p=>{
+  const opt = document.createElement('option');
+  opt.value = p.id;
+  opt.textContent = p.title;
+  probeSelect.appendChild(opt);
+});
+loadThemes(currentProbeId);
+
+probeSelect.addEventListener('change', e => loadThemes(parseInt(e.target.value)));
 
 function loadThemes(probeId){
+  currentProbeId = probeId;
   const themesDiv = document.getElementById('themes');
   themesDiv.innerHTML = '';
-  const probe = window.probes.find(p => p.id==probeId);
+  const probe = probes.find(p=>p.id===probeId);
   probe.themes.forEach(t=>{
     const div = document.createElement('div');
     div.className = 'theme';
-    div.textContent = `${t.name} (max ${t.max} Teilnehmer)`;
-    div.dataset.themeId = t.id;
+    const disabled = (t.participants.length >= t.max) ? 'disabled' : '';
+    div.className += disabled ? ' disabled' : '';
+    div.innerHTML = `<label>
+      <input type="radio" name="theme" value="${t.id}" ${disabled ? 'disabled' : ''}> 
+      ${t.name} (max ${t.max}, noch frei ${t.max - t.participants.length})
+    </label>`;
     themesDiv.appendChild(div);
+  });
+  updateMyRegistrations();
+  updateParticipantsList();
+}
+
+// Anmeldebutton
+document.getElementById('register').addEventListener('click', ()=>{
+  const name = document.getElementById('name').value.trim();
+  if(!name){ alert("Bitte Name eingeben"); return; }
+
+  const selected = document.querySelector('.theme input[type="radio"]:checked');
+  if(!selected){ alert("Bitte ein Thema auswählen"); return; }
+
+  const probe = probes.find(p=>p.id===currentProbeId);
+  const theme = probe.themes.find(t=>t.id==selected.value);
+
+  if(theme.participants.length >= theme.max){
+    alert("Dieses Thema ist leider schon voll!");
+    return;
+  }
+
+  // Wenn schon angemeldet: vorher entfernen
+  const prevThemeId = myRegistrations[currentProbeId];
+  if(prevThemeId && prevThemeId != theme.id){
+    const prevTheme = probe.themes.find(t=>t.id==prevThemeId);
+    prevTheme.participants = prevTheme.participants.filter(n=>n != name);
+  }
+
+  theme.participants.push(name);
+  myRegistrations[currentProbeId] = theme.id;
+
+  document.getElementById('name').value = '';
+  loadThemes(currentProbeId);
+});
+
+// Anzeige eigener Anmeldung
+function updateMyRegistrations(){
+  const myDiv = document.getElementById('my-registrations');
+  const themeId = myRegistrations[currentProbeId];
+  if(!themeId){ myDiv.textContent = "Noch keine Anmeldung"; return; }
+  const probe = probes.find(p=>p.id===currentProbeId);
+  const theme = probe.themes.find(t=>t.id==themeId);
+  myDiv.textContent = `Angemeldet für: ${theme.name}`;
+}
+
+// Teilnehmerliste anzeigen
+function updateParticipantsList(){
+  const probe = probes.find(p=>p.id===currentProbeId);
+  const container = document.getElementById('participants-list');
+  container.innerHTML = '';
+  probe.themes.forEach(t=>{
+    if(t.participants.length>0){
+      const div = document.createElement('div');
+      div.textContent = `${t.name}: ${t.participants.join(', ')}`;
+      container.appendChild(div);
+    }
   });
 }
 
-// Dropdown-Event
-document.getElementById('probe').addEventListener('change', e => {
-  loadThemes(e.target.value);
-});
-
-// Anmelde-Button (nur Demo)
-document.getElementById('register').addEventListener('click', ()=>{
-  const name = document.getElementById('name').value;
-  const probeId = document.getElementById('probe').value;
-  if(!name){ alert('Bitte Name eingeben'); return; }
-  alert(`Danke ${name}, du wurdest angemeldet! (Demo)`);
+// CSV Export
+document.getElementById('export-csv').addEventListener('click', ()=>{
+  const probe = probes.find(p=>p.id===currentProbeId);
+  let csv = "Thema,Name\n";
+  probe.themes.forEach(t=>{
+    t.participants.forEach(pName=>{
+      csv += `${t.name},${pName}\n`;
+    });
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Sonderprobe_${probe.title}_Teilnehmer.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 </script>
 </body>

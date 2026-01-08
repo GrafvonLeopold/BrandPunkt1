@@ -11,7 +11,7 @@ select, input, button { margin-top:10px; display:block; width:100%; padding:8px;
 .theme { padding:8px; border:1px solid #ccc; border-radius:5px; margin-bottom:8px; background:#fafafa; }
 .theme label { cursor:pointer; display:block; }
 .theme.disabled { background:#eee; color:#888; }
-#participants-list { margin-top:20px; font-size:0.95em; }
+#participants-list, #my-registrations { margin-top:20px; font-size:0.95em; }
 button { background:#d33; color:white; border:none; border-radius:5px; cursor:pointer; }
 button:hover { background:#b22; }
 </style>
@@ -29,7 +29,8 @@ button:hover { background:#b22; }
 <label for="name">Dein Name:</label>
 <input id="name" type="text" placeholder="Name">
 
-<button id="register">Anmelden</button>
+<button id="register">Anmelden / Thema ändern</button>
+<button id="unregister">Abmelden</button>
 <button id="export-csv">Teilnehmerliste exportieren (CSV)</button>
 
 <h3>Wo du angemeldet bist:</h3>
@@ -75,11 +76,11 @@ function loadThemes(probeId){
   probe.themes.forEach(t=>{
     const div = document.createElement('div');
     div.className = 'theme';
-    const disabled = (t.participants.length >= t.max) ? 'disabled' : '';
+    const disabled = (t.participants.length >= t.max && (!myRegistrations[probeId] || myRegistrations[probeId] != t.id)) ? 'disabled' : '';
     div.className += disabled ? ' disabled' : '';
     div.innerHTML = `<label>
-      <input type="radio" name="theme" value="${t.id}" ${disabled ? 'disabled' : ''}> 
-      ${t.name} (max ${t.max}, noch frei ${t.max - t.participants.length})
+      <input type="radio" name="theme" value="${t.id}" ${disabled ? 'disabled' : ''} ${myRegistrations[probeId]==t.id ? 'checked' : ''}> 
+      ${t.name} (max ${t.max}, noch frei ${t.max - t.participants.length + (myRegistrations[probeId]==t.id?1:0)})
     </label>`;
     themesDiv.appendChild(div);
   });
@@ -87,7 +88,7 @@ function loadThemes(probeId){
   updateParticipantsList();
 }
 
-// Anmeldebutton
+// Anmeldung / Thema ändern
 document.getElementById('register').addEventListener('click', ()=>{
   const name = document.getElementById('name').value.trim();
   if(!name){ alert("Bitte Name eingeben"); return; }
@@ -98,22 +99,41 @@ document.getElementById('register').addEventListener('click', ()=>{
   const probe = probes.find(p=>p.id===currentProbeId);
   const theme = probe.themes.find(t=>t.id==selected.value);
 
-  if(theme.participants.length >= theme.max){
+  // Prüfen, ob voll
+  if(theme.participants.length >= theme.max && (!myRegistrations[currentProbeId] || myRegistrations[currentProbeId] != theme.id)){
     alert("Dieses Thema ist leider schon voll!");
     return;
   }
 
-  // Wenn schon angemeldet: vorher entfernen
+  // Vorherige Anmeldung entfernen
   const prevThemeId = myRegistrations[currentProbeId];
   if(prevThemeId && prevThemeId != theme.id){
     const prevTheme = probe.themes.find(t=>t.id==prevThemeId);
     prevTheme.participants = prevTheme.participants.filter(n=>n != name);
   }
 
-  theme.participants.push(name);
+  // Neue Anmeldung speichern
+  if(!theme.participants.includes(name)) theme.participants.push(name);
   myRegistrations[currentProbeId] = theme.id;
 
   document.getElementById('name').value = '';
+  loadThemes(currentProbeId);
+});
+
+// Abmelden
+document.getElementById('unregister').addEventListener('click', ()=>{
+  const name = prompt("Bitte Name zum Abmelden eingeben:").trim();
+  if(!name){ return; }
+
+  const probe = probes.find(p=>p.id===currentProbeId);
+  const themeId = myRegistrations[currentProbeId];
+  if(!themeId){ alert("Du bist für diese Probe nicht angemeldet."); return; }
+
+  const theme = probe.themes.find(t=>t.id==themeId);
+  theme.participants = theme.participants.filter(n=>n != name);
+  delete myRegistrations[currentProbeId];
+
+  alert(`Du wurdest abgemeldet.`);
   loadThemes(currentProbeId);
 });
 
